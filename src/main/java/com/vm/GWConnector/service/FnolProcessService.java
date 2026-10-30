@@ -1,10 +1,10 @@
 package com.vm.GWConnector.service;
 
-import com.vm.GWConnector.model.ClaimResponse;
-import com.vm.GWConnector.model.DraftClaimRequestDTO;
+import com.vm.GWConnector.model.*;
+import com.vm.GWConnector.model.FnolProcessRequest;
 
 public interface FnolProcessService {
 
-    ClaimResponse processFnol(DraftClaimRequestDTO request);
+    ClaimResponse processFnol(FnolProcessRequest request);
 
 }

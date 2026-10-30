@@ -21,6 +21,7 @@ public interface ClaimService {
     GWClaimResponse getClaim(String claimNumber);
 
     GWClaimResponse getClaimById(String claimId);
+    GWClaimResponse getClaimByNumber(String claimId);
 
     List<ClaimResponseDTO> getClaimsByPolicyNumber(String policyNumber);
 

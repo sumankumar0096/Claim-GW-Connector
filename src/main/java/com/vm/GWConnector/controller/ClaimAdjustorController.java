@@ -1,6 +1,6 @@
 package com.vm.GWConnector.controller;
 
-import com.vm.GWConnector.model.GWClaimAdjustorResponse;
+import com.vm.GWConnector.model.*;
 import com.vm.GWConnector.model.GWClaimAdjustorUsersResponse;
 import com.vm.GWConnector.service.ClaimAdjustorService;
 import lombok.RequiredArgsConstructor;
@@ -39,12 +39,12 @@ public class ClaimAdjustorController {
     // Keep the original /groups/... path available while accepting the path used by clients.
     @GetMapping({"/{groupId}/users", "/groups/{groupId}/users"})
     @Operation(summary = "List users in a claim-adjustor group")
-    public ResponseEntity<GWClaimAdjustorUsersResponse> getClaimAdjustorUsers(
+    public ResponseEntity<ClaimAdjustorUsersResponseDTO> getClaimAdjustorUsers(
             @PathVariable String groupId,
             @RequestParam(name = "pageSize", defaultValue = "100") int pageSize) {
 
         log.info("Received request to fetch claim adjustor users for groupId={} pageSize={}", groupId, pageSize);
-        GWClaimAdjustorUsersResponse response = claimAdjustorService.getClaimAdjustorUsers(groupId, pageSize);
+        ClaimAdjustorUsersResponseDTO response = claimAdjustorService.getClaimAdjustorUsers(groupId, pageSize);
         log.info("Returning claim adjustor users response with count={}", response != null ? response.getCount() : 0);
         return ResponseEntity.ok(response);
     }

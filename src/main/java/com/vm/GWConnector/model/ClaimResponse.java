@@ -35,4 +35,6 @@ public class ClaimResponse {
     private String state;
     private String postalCode;
     private String address;
+    private String assignedGroup;
+    private ClaimAdjustorUsersResponseDTO adjustors;
 }

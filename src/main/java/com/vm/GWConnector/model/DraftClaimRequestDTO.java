@@ -1,5 +1,6 @@
 package com.vm.GWConnector.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
@@ -54,6 +55,7 @@ public class DraftClaimRequestDTO {
     @Data
     public static class CodeDTO {
         @NotBlank private String code;
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         private String name;
     }
 }

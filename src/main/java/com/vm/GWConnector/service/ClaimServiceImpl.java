@@ -98,6 +98,79 @@ public class ClaimServiceImpl implements ClaimService {
         }
     }
 
+    @Override
+    public GWClaimResponse getClaimByNumber(String claimNumber) {
+
+        String url = baseUrl
+                + "/rest/claim/v1/claims/claimNumber/"
+                + claimNumber;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBasicAuth(username, password);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        try {
+            log.info("Fetching claim from GW by claim number: claimNumber={}",claimNumber);
+
+            ResponseEntity<GWClaimAttributes> response =
+                    restTemplate.exchange(
+                            url,
+                            HttpMethod.GET,
+                            new HttpEntity<Void>(headers),
+                            GWClaimAttributes.class
+                    );
+
+            GWClaimAttributes attributes = response.getBody();
+
+            log.info(
+                    "Received claim response by claim number: " +
+                            "claimNumber={} status={} attributesPresent={}",
+                    claimNumber,
+                    response.getStatusCode(),
+                    attributes != null
+            );
+
+            if (attributes == null) {
+                throw new ClaimServiceException(
+                        "Guidewire returned empty claim details for claimNumber="
+                                + claimNumber
+                );
+            }
+
+            return mapToClaimResponse(attributes);
+
+        } catch (HttpClientErrorException e) {
+
+            log.error(
+                    "Guidewire rejected claim lookup: claimNumber={} " +
+                            "status={} response={}",
+                    claimNumber,
+                    e.getStatusCode(),
+                    e.getResponseBodyAsString(),
+                    e
+            );
+
+            throw new ClaimServiceException(
+                    "Failed to fetch claim by number from GW: "
+                            + claimNumber,
+                    e
+            );
+
+        } catch (RestClientException e) {
+
+            log.error(
+                    "Error fetching claim by number from GW: claimNumber={}",
+                    claimNumber,
+                    e
+            );
+
+            throw new ClaimServiceException(
+                    "Failed to fetch claim by number from GW",
+                    e
+            );
+        }
+    }
+
     private GWClaimResponse mapToClaimResponse(GWClaimAttributes attributes) {
         if (attributes == null) {
             return null;
@@ -215,7 +288,11 @@ public class ClaimServiceImpl implements ClaimService {
         }
 
         PolicyResponse policy = resolvePolicy(request);
-        GWDraftClaimRequest gwRequest = draftClaimMapper.mapToGWRequest(request, policy);
+        GWDraftClaimRequest gwRequest = request.getLossLocation() != null
+                && "GB".equalsIgnoreCase(request.getLossLocation().getCountry())
+                ? draftClaimMapper.mapToUKGWRequest(request, policy)
+                : draftClaimMapper.mapToGWRequest(request, policy);
+//        GWDraftClaimRequest gwRequest = draftClaimMapper.mapToUKGWRequest(request, policy);
         String url = baseUrl + "/rest/claim/v1/claims";
 
         HttpHeaders headers = new HttpHeaders();
@@ -224,7 +301,7 @@ public class ClaimServiceImpl implements ClaimService {
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         try {
-            log.info("Creating draft claim in Guidewire: policyNumber={}", request.getPolicyNumber());
+            log.info("Creating draft claim in Guidewire: request={}", gwRequest);
             ResponseEntity<GWDraftClaimResponse> response = restTemplate.exchange(
                     url, HttpMethod.POST, new HttpEntity<>(gwRequest, headers), GWDraftClaimResponse.class);
             DraftClaimResponseDTO result = draftClaimMapper.mapToResponse(response.getBody());

@@ -1,5 +1,6 @@
 package com.vm.GWConnector.model;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
@@ -27,6 +28,7 @@ public class GWDraftClaimRequest {
         private String country;
         private String policyLabel;
         private String postalCode;
+        @JsonInclude(JsonInclude.Include.NON_NULL)
         private GWCodeName state;
     }
     @Data public static class Reference { private String refid; }

@@ -6,68 +6,139 @@ import com.vm.GWConnector.model.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class FnolProcessServiceImpl implements FnolProcessService {
 
+    private static final int ADJUSTOR_PAGE_SIZE = 100;
+
     private final ClaimService claimService;
-    private final ClaimAdjustorService claimAdjustorService;
     private final ClaimMapper claimMapper;
+    private final ClaimAdjustorService claimAdjustorService;
 
     @Override
-    public ClaimResponse processFnol(DraftClaimRequestDTO request) {
-        log.info("Processing FNOL for policy={} claim={}", request.getPolicyNumber(), request.getClaimNumber());
+    public ClaimResponse processFnol(FnolProcessRequest request) {
 
-        DraftClaimResponseDTO draftClaim = claimService.createDraftClaim(request);
-        if (draftClaim == null || !org.springframework.util.StringUtils.hasText(draftClaim.getClaimId())) {
-            throw new ClaimServiceException("Draft-claim response did not contain a claim ID");
-        }
+        log.info("Processing FNOL for policy={} claim={}",
+                request.getPolicyNumber(),
+                request.getClaimNumber());
 
-        String assignedGroupId;
-        if (request.hasClaimReference()) {
-            GWClaimResponse existingClaim = claimService.getClaimById(draftClaim.getClaimId());
-            assignedGroupId = existingClaim != null && existingClaim.getAssignedGroup() != null
-                    ? existingClaim.getAssignedGroup().getId() : null;
+        GWClaimResponse claimDetails;
+
+        // ==========================================
+        // Scenario 1 : Existing Claim
+        // ==========================================
+        if (StringUtils.hasText(request.getClaimNumber())) {
+
+            log.info("Existing claim number provided. Fetching claim by number={}",
+                    request.getClaimNumber());
+
+            claimDetails = claimService.getClaimByNumber(request.getClaimNumber());
+
+            if (claimDetails == null) {
+                throw new ClaimServiceException(
+                        "Unable to retrieve claim details for claimNumber="
+                                + request.getClaimNumber());
+            }
+
         } else {
-            ClaimSubmissionRequestDTO submissionRequest = new ClaimSubmissionRequestDTO();
+
+            // ==========================================
+            // Scenario 2 : New FNOL
+            // ==========================================
+            DraftClaimRequestDTO draftRequest = request.toDraftClaimRequest();
+
+            DraftClaimResponseDTO draftClaim =
+                    claimService.createDraftClaim(draftRequest);
+
+            if (draftClaim == null ||
+                    !StringUtils.hasText(draftClaim.getClaimId())) {
+
+                throw new ClaimServiceException(
+                        "Draft claim response did not contain a claim ID");
+            }
+
+            log.info("Draft claim created. claimId={}", draftClaim.getClaimId());
+
+            ClaimSubmissionRequestDTO submissionRequest =
+                    new ClaimSubmissionRequestDTO();
+
             submissionRequest.setClaimId(draftClaim.getClaimId());
-            ClaimSubmissionResponseDTO submittedClaim = claimService.submitClaim(submissionRequest);
-            assignedGroupId = submittedClaim != null && submittedClaim.getAssignedGroup() != null
-                    ? submittedClaim.getAssignedGroup().getId() : null;
+
+            ClaimSubmissionResponseDTO submittedClaim =
+                    claimService.submitClaim(submissionRequest);
+
+            if (submittedClaim == null) {
+                throw new ClaimServiceException(
+                        "Claim submission did not return claim details");
+            }
+
+            log.info("Claim submitted successfully. claimId={}",
+                    draftClaim.getClaimId());
+
+            claimDetails = claimService.getClaimById(draftClaim.getClaimId());
+
+            if (claimDetails == null) {
+                throw new ClaimServiceException(
+                        "Unable to retrieve claim details for claimId="
+                                + draftClaim.getClaimId());
+            }
         }
-        if (!org.springframework.util.StringUtils.hasText(assignedGroupId)) {
-            throw new ClaimServiceException("Claim details did not contain an assigned group ID");
+
+        // ==========================================
+        // Common processing
+        // ==========================================
+        ClaimResponse response = claimMapper.mapToClaimResponse(claimDetails);
+
+        String assignedGroupId = getAssignedGroupId(claimDetails);
+
+        if (StringUtils.hasText(assignedGroupId)) {
+
+            log.info("Fetching claim adjustor users for assignedGroupId={}",
+                    assignedGroupId);
+
+            try {
+
+                ClaimAdjustorUsersResponseDTO adjustors =
+                        claimAdjustorService.getClaimAdjustorUsers(
+                                assignedGroupId,
+                                ADJUSTOR_PAGE_SIZE);
+
+                response.setAdjustors(adjustors);
+
+                log.info("Claim adjustor users added successfully.");
+
+            } catch (Exception ex) {
+
+                log.error("Failed to fetch adjustor users for group={}",
+                        assignedGroupId,
+                        ex);
+
+                // Don't fail FNOL if adjustor lookup fails
+            }
+
+        } else {
+
+            log.warn("Assigned group not found for claim={}",
+                    claimDetails.getClaimNumber());
         }
 
-        GWClaimAdjustorUsersResponse usersResponse = claimAdjustorService.getClaimAdjustorUsers(assignedGroupId, 100);
-        String userId = selectRandomUserId(usersResponse);
-
-        ClaimAssignmentRequestDTO assignmentRequest = new ClaimAssignmentRequestDTO();
-        assignmentRequest.setClaimId(draftClaim.getClaimId());
-        assignmentRequest.setGroupId(assignedGroupId);
-        assignmentRequest.setUserId(userId);
-        claimService.assignClaim(assignmentRequest);
-
-        return claimMapper.mapToClaimResponse(claimService.getClaimById(draftClaim.getClaimId()));
+        return response;
     }
 
-    private String selectRandomUserId(GWClaimAdjustorUsersResponse usersResponse) {
-        List<String> userIds = usersResponse == null || usersResponse.getData() == null ? List.of()
-                : usersResponse.getData().stream()
-                .map(GWClaimAdjustorUsersResponse.UserData::getAttributes)
-                .filter(java.util.Objects::nonNull)
-                .map(GWClaimAdjustorUsersResponse.UserAttributes::getUser)
-                .filter(java.util.Objects::nonNull)
-                .map(GWClaimAdjustorUsersResponse.UserReference::getId)
-                .filter(org.springframework.util.StringUtils::hasText)
-                .toList();
-        if (userIds.isEmpty()) {
-            throw new ClaimServiceException("No assignable users found for group");
+    /**
+     * Extract assignedGroup.id from claim details.
+     */
+    private String getAssignedGroupId(GWClaimResponse claimDetails) {
+
+        if (claimDetails == null ||
+                claimDetails.getAssignedGroup() == null) {
+            return null;
         }
-        return userIds.get(ThreadLocalRandom.current().nextInt(userIds.size()));
+
+        return claimDetails.getAssignedGroup().getId();
     }
 }

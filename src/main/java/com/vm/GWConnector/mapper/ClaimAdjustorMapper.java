@@ -3,6 +3,7 @@ package com.vm.GWConnector.mapper;
 import com.vm.GWConnector.model.ClaimAdjustorResponse;
 import com.vm.GWConnector.model.GWClaimAdjustorResponse;
 import org.springframework.stereotype.Component;
+import com.vm.GWConnector.model.ClaimAdjustorUsersResponseDTO;
 
 import java.util.Collections;
 import java.util.List;
@@ -75,5 +76,6 @@ public class ClaimAdjustorMapper {
         }
         return null;
     }
+    
 }
 

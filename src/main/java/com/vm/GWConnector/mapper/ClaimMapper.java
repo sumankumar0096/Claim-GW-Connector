@@ -70,6 +70,10 @@ public class ClaimMapper {
             response.setClaimStateName(
                     gwClaimResponse.getState().getName());
         }
+        
+        if (gwClaimResponse.getAssignedGroup() != null) {
+                response.setAssignedGroup(gwClaimResponse.getAssignedGroup().getId());
+        }       
 
         response.setLossDate(gwClaimResponse.getLossDate());
         response.setReportedDate(gwClaimResponse.getReportedDate());

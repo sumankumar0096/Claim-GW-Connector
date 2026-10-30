@@ -1,7 +1,8 @@
 package com.vm.GWConnector.service;
 
 import com.vm.GWConnector.exception.ClaimServiceException;
-import com.vm.GWConnector.model.GWClaimAdjustorResponse;
+import com.vm.GWConnector.model.*;
+import com.vm.GWConnector.mapper.GWClaimAdjustorUsersMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -83,7 +84,7 @@ public class ClaimAdjustorServiceImpl implements ClaimAdjustorService {
     }
 
     @Override
-    public com.vm.GWConnector.model.GWClaimAdjustorUsersResponse getClaimAdjustorUsers(String groupId, int pageSize) {
+    public ClaimAdjustorUsersResponseDTO getClaimAdjustorUsers(String groupId, int pageSize) {
         String url = String.format("%s/rest/admin/v1/groups/%s/users?pageSize=%d", adminApiUrl, groupId, pageSize);
 
         HttpHeaders headers = new HttpHeaders();
@@ -100,7 +101,7 @@ public class ClaimAdjustorServiceImpl implements ClaimAdjustorService {
                     entity,
                     com.vm.GWConnector.model.GWClaimAdjustorUsersResponse.class);
             log.info("Received claim adjustor users response: status={} count={}", response.getStatusCode(), response.getBody() != null ? response.getBody().getCount() : null);
-            return response.getBody();
+            return GWClaimAdjustorUsersMapper.map(response.getBody());
         } catch (RestClientException e) {
             log.error("Error fetching claim adjustor users from GW for groupId={}", groupId, e);
             throw new ClaimServiceException("Failed to fetch claim adjustor users from GW", e);
