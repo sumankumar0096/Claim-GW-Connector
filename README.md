@@ -50,6 +50,6 @@ The machine-readable OpenAPI 3 specification is available at:
 
 ```
 http://localhost:8081/v3/api-docs
-```
+```-
 
 The UI documents the policy, claim, FNOL, and claim-adjustor endpoints and their request/response schemas. The connector's Guidewire credentials are configured on the server; do not enter them in Swagger requests.
